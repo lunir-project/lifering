@@ -3,12 +3,15 @@ use num::Float;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FloatingPointScalars(u64, i16, i8);
 
+/// Error type that indicates a `NaN` was used to attempt to create a [`FloatingPointScalars`].
 #[derive(Debug)]
 pub struct NanError;
 
+/// A wrapper struct around floats to avoid conflict with blanket impl of TryFrom. 
 pub struct FloatWrap<F: Float>(F);
 
 impl FloatingPointScalars {
+    /// Creates a new [`FloatingPointScalars`] from a [`Float`].
     #[inline]
     pub fn new<F: Float>(num: F) -> Result<Self, NanError> {
         Self::try_from(FloatWrap(num))
