@@ -107,3 +107,15 @@ impl Into<f32> for FloatingPointComponents {
         sign_f * mantissa_f * exponent_f
     }
 }
+
+/// Easier way to make [`FloatingPointComponents`] from a [`Float`].
+///
+/// # Panics
+/// This macro unwraps internally, if you would like to use custom handling for
+/// the potential failure, you should manually create [`FloatingPointComponents`].
+#[macro_export]
+macro_rules! lifering {
+    ($float:expr) => {
+        FloatingPointComponents::new($float).unwrap()
+    };
+}
