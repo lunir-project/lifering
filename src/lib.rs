@@ -1,6 +1,7 @@
 use num::Float;
 use std::fmt::Debug;
 
+/// A mantissa-exponent-sign triple that represents a floating point number.
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct FloatingPointComponents(u64, i16, i8);
 
@@ -8,7 +9,7 @@ pub struct FloatingPointComponents(u64, i16, i8);
 #[derive(Debug)]
 pub struct NanError;
 
-/// A wrapper struct around floats to avoid conflict with blanket impl of TryFrom.
+#[doc(hidden)]
 pub struct FloatWrap<F: Float>(F);
 
 impl FloatingPointComponents {
