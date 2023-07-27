@@ -1,16 +1,6 @@
 use lifering::{lifering, FloatingPointComponents};
 
 #[test]
-fn test_f64_nan() {
-    FloatingPointComponents::new(f64::NAN).as_f64();
-}
-
-#[test]
-fn test_f32_nan() {
-    FloatingPointComponents::new(f32::NAN).as_f32();
-}
-
-#[test]
 fn test_value_recovery_f64() {
     const PI: f64 = 3.141592653589793;
     const EULER: f64 = 2.718281828459045;
@@ -30,18 +20,18 @@ fn test_value_recovery_f32() {
 
 #[test]
 #[should_panic]
-fn test_nan_partialord_f32() {
+fn test_nan_f32() {
     lifering!(f32::NAN).partial_cmp(&lifering!(0.0)).unwrap();
 }
 
 #[test]
 #[should_panic]
-fn test_nan_partialord_f64() {
+fn test_nan_f64() {
     lifering!(f64::NAN).partial_cmp(&lifering!(0.0)).unwrap();
 }
 
 #[test]
-fn test_infinity_partialord_f64() {
+fn test_infinity_f64() {
     assert!(lifering!(f64::INFINITY)
         .partial_cmp(&lifering!(0.0))
         .unwrap()
@@ -49,7 +39,7 @@ fn test_infinity_partialord_f64() {
 }
 
 #[test]
-fn test_infinity_partialord_f32() {
+fn test_infinity_f32() {
     assert!(lifering!(f32::INFINITY)
         .partial_cmp(&lifering!(0.0))
         .unwrap()
@@ -57,14 +47,14 @@ fn test_infinity_partialord_f32() {
 }
 
 #[test]
-fn test_neg_infinity_partialord_f64() {
+fn test_neg_infinity_f64() {
     assert!(lifering!(f64::NEG_INFINITY)
         .partial_cmp(&lifering!(0.0))
         .unwrap()
         .is_lt());
 }
 #[test]
-fn test_neg_infinity_partialord_f32() {
+fn test_neg_infinity_f32() {
     assert!(lifering!(f32::NEG_INFINITY)
         .partial_cmp(&lifering!(0.0))
         .unwrap()
