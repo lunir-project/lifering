@@ -101,11 +101,18 @@ impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
                 .finish()
                 .and(write!(f, " ({:?})", self.as_f64())),
 
-            Self::NaN(v) if (v.to_f64().unwrap().to_bits() & (1 << 51)) == 0 => {
-                f.debug_struct("Signaling NaN").finish()
-            }
+            Self::NaN(v) => {
+                let v = v.to_f64().unwrap();
+                let b = v.to_bits();
 
-            Self::NaN(_) => f.debug_struct("Quet NaN").finish(),
+                f.debug_struct(if (b & (1 << 51)) == 0 {
+                    "Signaling NaN"
+                } else {
+                    "Quiet NaN"
+                })
+                .finish()
+                .and(write!(f, " ({b:#X})"))
+            }
         }
     }
 }
