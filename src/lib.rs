@@ -14,7 +14,7 @@
 
 use num::Float;
 
-/// A mantissa-exponent-sign triple that represents a floating point number or NaN encoding.
+/// An enum which either represents a floating point number as a mantissa-exponent-sign triple a or NaN encoding.
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum FloatingPointComponents<F: Float> {
     Float(u64, i16, i8),
@@ -66,27 +66,9 @@ impl<F: Float> FloatingPointComponents<F> {
     }
 
     /// Gets the type punned bits of the underlying float.
+    #[inline]
     pub fn as_punned(&self) -> u64 {
-        let float_size = std::mem::size_of::<F>();
-        let is_f32 = float_size == 4;
-
-        if is_f32 {
-            let punned_bits = self.as_f32().to_bits();
-            let sign = 1 << ((float_size * 8) - 1);
-            if punned_bits & sign == 0 {
-                (punned_bits | sign) as u64
-            } else {
-                (!punned_bits) as u64
-            }
-        } else {
-            let punned_bits = self.as_f64().to_bits();
-            let sign = 1 << ((float_size * 8) - 1);
-            if punned_bits & sign == 0 {
-                punned_bits | sign
-            } else {
-                !punned_bits
-            }
-        }
+        (-self.as_f64()).to_bits()
     }
 }
 
@@ -100,7 +82,6 @@ impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
                 .field("exponent", &(2 as f64).powf(*exponent as f64))
                 .finish()
                 .and(write!(f, " ({:?})", self.as_f64())),
-
             Self::NaN(v) => {
                 let v = v.to_f64().unwrap();
                 let b = v.to_bits();
@@ -156,10 +137,6 @@ impl<F: Float> Into<f32> for FloatingPointComponents<F> {
 }
 
 /// Easier way to make [`FloatingPointComponents`] from a [`Float`].
-///
-/// # Panics
-/// This macro unwraps internally, if you would like to use custom handling for
-/// the potential failure, you should manually create [`FloatingPointComponents`].
 #[macro_export]
 macro_rules! lifering {
     ($float:expr) => {
