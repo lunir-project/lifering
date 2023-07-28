@@ -90,3 +90,23 @@ fn compare_f32_and_f64() {
         .unwrap()
         .is_eq());
 }
+
+#[test]
+fn eq_f32_nan() {
+    assert!(lifering!(f32::NAN) == lifering!(f32::NAN));
+}
+
+#[test]
+fn eq_f64_nan() {
+    assert!(lifering!(f64::NAN) == lifering!(f64::NAN));
+}
+
+#[test]
+fn neq_f32_nan() {
+    assert!(lifering!(f32::NAN) != lifering!(0.0));
+}
+
+#[test]
+fn neq_f64_nan() {
+    assert!(lifering!(f64::NAN) != lifering!(0.0));
+}
