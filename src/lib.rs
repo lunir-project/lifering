@@ -24,7 +24,7 @@ pub struct FloatEncoding(u64, i16, i8);
 #[derive(Clone)]
 pub enum FloatingPointComponents<F: Float> {
     Float(FloatEncoding),
-    NaN(FloatWrap<F>),
+    NaN(F),
 }
 
 impl<F: Float> Eq for FloatingPointComponents<F> {}
@@ -33,7 +33,7 @@ impl<F: Float> Hash for FloatingPointComponents<F> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
             Self::Float(encoding) => encoding.hash(state),
-            Self::NaN(v) => v.0.to_f64().unwrap().to_bits().hash(state),
+            Self::NaN(v) => v.to_f64().unwrap().to_bits().hash(state),
         }
     }
 }
@@ -89,7 +89,7 @@ impl<F: Float> FloatingPointComponents<F> {
                 sign as f32 * mantissa as f32 * (2 as f32).powf(exponent as f32)
             }
 
-            Self::NaN(v) => v.0.to_f32().unwrap(),
+            Self::NaN(v) => v.to_f32().unwrap(),
         }
     }
 
@@ -101,7 +101,7 @@ impl<F: Float> FloatingPointComponents<F> {
                 let FloatEncoding(mantissa, exponent, sign) = encoding;
                 sign as f64 * mantissa as f64 * (2 as f64).powf(exponent as f64)
             }
-            Self::NaN(v) => v.0.to_f64().unwrap(),
+            Self::NaN(v) => v.to_f64().unwrap(),
         }
     }
 
@@ -125,7 +125,7 @@ impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
                     .and(write!(f, " ({:?})", self.as_f64()))
             }
             Self::NaN(v) => {
-                let v = v.0.to_f64().unwrap();
+                let v = v.to_f64().unwrap();
                 let b = v.to_bits();
 
                 f.debug_struct(if (b & (1 << 51)) == 0 {
@@ -142,11 +142,11 @@ impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
 
 impl<F: Float> From<FloatWrap<F>> for FloatingPointComponents<F> {
     fn from(value: FloatWrap<F>) -> Self {
-        if value.0.is_nan() {
+        let value = value.0;
+        if value.is_nan() {
             return Self::NaN(value);
         }
 
-        let value = value.0;
         let (mantissa, exponent, sign) = value.integer_decode();
 
         Self::Float(FloatEncoding(mantissa, exponent, sign))
