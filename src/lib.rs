@@ -1,122 +1,155 @@
+//    Copyright 2023 lunir-project
+
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+
+//        http://www.apache.org/licenses/LICENSE-2.0
+
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+
 use num::Float;
-use std::fmt::Debug;
 
-/// A mantissa-exponent-sign triple that represents a floating point number.
-#[derive(Clone, Eq, Hash, PartialEq)]
-pub struct FloatingPointComponents(u64, i16, i8);
+/// An enum which either represents a floating point number as a mantissa-exponent-sign triple a or NaN encoding.
+#[derive(Clone, Eq, Hash)]
+pub enum FloatingPointComponents<F: Float> {
+    Float(u64, i16, i8),
+    NaN(F),
+}
 
-/// Error type that indicates a `NaN` was used to attempt to create [`FloatingPointComponents`].
-#[derive(Debug)]
-pub struct NanError;
+impl<F: Float> PartialEq for FloatingPointComponents<F> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Float(..) => self.as_f64() == other.as_f64(),
+            Self::NaN(_) if matches!(other, Self::NaN(_)) => self.as_punned() == other.as_punned(),
+            _ => false,
+        }
+    }
+}
+
+impl<F: Float> PartialOrd for FloatingPointComponents<F> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self {
+            Self::Float(..) if matches!(other, Self::Float(..)) => {
+                self.as_punned().partial_cmp(&other.as_punned())
+            }
+            _ => None,
+        }
+    }
+}
 
 #[doc(hidden)]
 pub struct FloatWrap<F: Float>(F);
 
-impl FloatingPointComponents {
+impl<F: Float> FloatingPointComponents<F> {
     /// Creates new [`FloatingPointComponents`] from a [`Float`].
     #[inline]
-    pub fn new<F: Float>(num: F) -> Result<Self, NanError> {
-        Self::try_from(FloatWrap(num))
+    pub fn new(num: F) -> Self {
+        Self::from(FloatWrap(num))
     }
-}
 
-impl FloatingPointComponents {
     /// Returns the [`f32`] value of these [`FloatingPointComponents`].
     #[inline]
     pub fn as_f32(&self) -> f32 {
-        let sign_f = self.2 as f32;
-        let mantissa_f = self.0 as f32;
-        let exponent_f = (2 as f32).powf(self.1 as f32);
+        match *self {
+            Self::Float(mantissa, exponent, sign) => {
+                sign as f32 * mantissa as f32 * (2 as f32).powf(exponent as f32)
+            }
 
-        sign_f * mantissa_f * exponent_f
+            Self::NaN(v) => v.to_f32().unwrap(),
+        }
     }
 
     /// Returns the [`f64`] value of these [`FloatingPointComponents`].
     #[inline]
     pub fn as_f64(&self) -> f64 {
-        let sign_f = self.2 as f64;
-        let mantissa_f = self.0 as f64;
-        let exponent_f = (2 as f64).powf(self.1 as f64);
+        match *self {
+            Self::Float(mantissa, exponent, sign) => {
+                sign as f64 * mantissa as f64 * (2 as f64).powf(exponent as f64)
+            }
+            Self::NaN(v) => v.to_f64().unwrap(),
+        }
+    }
 
-        sign_f * mantissa_f * exponent_f
+    /// Gets the type punned bits of the underlying float.
+    #[inline]
+    pub fn as_punned(&self) -> u64 {
+        (-self.as_f64()).to_bits()
     }
 }
 
-impl std::fmt::Debug for FloatingPointComponents {
+impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Float")
-            .field("sign", &self.2)
-            .field("mantissa", &self.0)
-            .field("exponent", &(2 as f64).powf(self.1 as f64))
-            .finish()
-            .and(write!(f, " ({})", self.as_f64()))
+        match self {
+            Self::Float(mantissa, exponent, sign) => f
+                .debug_struct("Float")
+                .field("sign", sign)
+                .field("mantissa", mantissa)
+                .field("exponent", &(2 as f64).powf(*exponent as f64))
+                .finish()
+                .and(write!(f, " ({:?})", self.as_f64())),
+            Self::NaN(v) => {
+                let v = v.to_f64().unwrap();
+                let b = v.to_bits();
+
+                f.debug_struct(if (b & (1 << 51)) == 0 {
+                    "Signaling NaN"
+                } else {
+                    "Quiet NaN"
+                })
+                .finish()
+                .and(write!(f, " ({b:#X})"))
+            }
+        }
     }
 }
 
-impl<F: Float> TryFrom<FloatWrap<F>> for FloatingPointComponents {
-    type Error = NanError;
-
-    fn try_from(value: FloatWrap<F>) -> Result<Self, Self::Error> {
+impl<F: Float> From<FloatWrap<F>> for FloatingPointComponents<F> {
+    fn from(value: FloatWrap<F>) -> Self {
         let value = value.0;
 
         if value.is_nan() {
-            return Err(NanError);
+            return Self::NaN(value);
         }
 
         let (mantissa, exponent, sign) = value.integer_decode();
 
-        Ok(Self(mantissa, exponent, sign))
+        Self::Float(mantissa, exponent, sign)
     }
 }
 
-impl Into<f64> for &FloatingPointComponents {
+impl<F: Float> Into<f64> for &FloatingPointComponents<F> {
     fn into(self) -> f64 {
-        let sign_f = self.2 as f64;
-        let mantissa_f = self.0 as f64;
-        let exponent_f = (2 as f64).powf(self.1 as f64);
-
-        sign_f * mantissa_f * exponent_f
+        self.as_f64()
     }
 }
 
-impl Into<f32> for &FloatingPointComponents {
+impl<F: Float> Into<f32> for &FloatingPointComponents<F> {
     fn into(self) -> f32 {
-        let sign_f = self.2 as f32;
-        let mantissa_f = self.0 as f32;
-        let exponent_f = (2 as f32).powf(self.1 as f32);
-
-        sign_f * mantissa_f * exponent_f
+        self.as_f32()
     }
 }
 
-impl Into<f64> for FloatingPointComponents {
+impl<F: Float> Into<f64> for FloatingPointComponents<F> {
     fn into(self) -> f64 {
-        let sign_f = self.2 as f64;
-        let mantissa_f = self.0 as f64;
-        let exponent_f = (2 as f64).powf(self.1 as f64);
-
-        sign_f * mantissa_f * exponent_f
+        self.as_f64()
     }
 }
 
-impl Into<f32> for FloatingPointComponents {
+impl<F: Float> Into<f32> for FloatingPointComponents<F> {
     fn into(self) -> f32 {
-        let sign_f = self.2 as f32;
-        let mantissa_f = self.0 as f32;
-        let exponent_f = (2 as f32).powf(self.1 as f32);
-
-        sign_f * mantissa_f * exponent_f
+        self.as_f32()
     }
 }
 
 /// Easier way to make [`FloatingPointComponents`] from a [`Float`].
-///
-/// # Panics
-/// This macro unwraps internally, if you would like to use custom handling for
-/// the potential failure, you should manually create [`FloatingPointComponents`].
 #[macro_export]
 macro_rules! lifering {
     ($float:expr) => {
-        FloatingPointComponents::new($float).unwrap()
+        FloatingPointComponents::new($float)
     };
 }
