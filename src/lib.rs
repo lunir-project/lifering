@@ -12,13 +12,30 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
+use std::hash::Hash;
+
 use num::Float;
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[doc(hidden)]
+pub struct FloatEncoding(u64, i16, i8);
+
 /// An enum which either represents a floating point number as a mantissa-exponent-sign triple a or NaN encoding.
-#[derive(Clone, Eq, Hash)]
+#[derive(Clone)]
 pub enum FloatingPointComponents<F: Float> {
-    Float(u64, i16, i8),
+    Float(FloatEncoding),
     NaN(FloatWrap<F>),
+}
+
+impl<F: Float> Eq for FloatingPointComponents<F> {}
+
+impl<F: Float> Hash for FloatingPointComponents<F> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Float(encoding) => encoding.hash(state),
+            Self::NaN(v) => v.0.to_f64().unwrap().to_bits().hash(state),
+        }
+    }
 }
 
 impl<F: Float> PartialEq for FloatingPointComponents<F> {
@@ -43,7 +60,7 @@ impl<F: Float> PartialOrd for FloatingPointComponents<F> {
 }
 
 #[doc(hidden)]
-#[derive(Clone, Copy, Hash, Eq)]
+#[derive(Clone, Copy, Eq)]
 pub struct FloatWrap<F: Float>(F);
 
 impl<F: Float> PartialEq for FloatWrap<F> {
@@ -67,7 +84,8 @@ impl<F: Float> FloatingPointComponents<F> {
     #[inline]
     pub fn as_f32(&self) -> f32 {
         match *self {
-            Self::Float(mantissa, exponent, sign) => {
+            Self::Float(encoding) => {
+                let FloatEncoding(mantissa, exponent, sign) = encoding;
                 sign as f32 * mantissa as f32 * (2 as f32).powf(exponent as f32)
             }
 
@@ -79,7 +97,8 @@ impl<F: Float> FloatingPointComponents<F> {
     #[inline]
     pub fn as_f64(&self) -> f64 {
         match *self {
-            Self::Float(mantissa, exponent, sign) => {
+            Self::Float(encoding) => {
+                let FloatEncoding(mantissa, exponent, sign) = encoding;
                 sign as f64 * mantissa as f64 * (2 as f64).powf(exponent as f64)
             }
             Self::NaN(v) => v.0.to_f64().unwrap(),
@@ -96,13 +115,15 @@ impl<F: Float> FloatingPointComponents<F> {
 impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Float(mantissa, exponent, sign) => f
-                .debug_struct("Float")
-                .field("sign", sign)
-                .field("mantissa", mantissa)
-                .field("exponent", &(2 as f64).powf(*exponent as f64))
-                .finish()
-                .and(write!(f, " ({:?})", self.as_f64())),
+            Self::Float(encoding) => {
+                let FloatEncoding(mantissa, exponent, sign) = encoding;
+                f.debug_struct("Float")
+                    .field("sign", sign)
+                    .field("mantissa", mantissa)
+                    .field("exponent", &(2 as f64).powf(*exponent as f64))
+                    .finish()
+                    .and(write!(f, " ({:?})", self.as_f64()))
+            }
             Self::NaN(v) => {
                 let v = v.0.to_f64().unwrap();
                 let b = v.to_bits();
@@ -128,7 +149,7 @@ impl<F: Float> From<FloatWrap<F>> for FloatingPointComponents<F> {
         let value = value.0;
         let (mantissa, exponent, sign) = value.integer_decode();
 
-        Self::Float(mantissa, exponent, sign)
+        Self::Float(FloatEncoding(mantissa, exponent, sign))
     }
 }
 
