@@ -15,10 +15,20 @@
 use num::Float;
 
 /// An enum which either represents a floating point number as a mantissa-exponent-sign triple a or NaN encoding.
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash)]
 pub enum FloatingPointComponents<F: Float> {
     Float(u64, i16, i8),
     NaN(F),
+}
+
+impl<F: Float> PartialEq for FloatingPointComponents<F> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Float(..) => self.as_f64() == other.as_f64(),
+            Self::NaN(_) if matches!(other, Self::NaN(_)) => self.as_punned() == other.as_punned(),
+            _ => false,
+        }
+    }
 }
 
 impl<F: Float> PartialOrd for FloatingPointComponents<F> {
