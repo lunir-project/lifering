@@ -110,3 +110,43 @@ fn neq_f32_nan() {
 fn neq_f64_nan() {
     assert!(lifering!(f64::NAN) != lifering!(0.0));
 }
+
+#[test]
+fn f64_hashmap() {
+    use std::collections::HashMap;
+
+    let mut map = HashMap::new();
+    map.insert(lifering!(1.0_f64), 1);
+    map.insert(lifering!(f64::NAN), 2);
+
+    for (key, value) in &map {
+        let key = key.as_f64();
+        if key == 1.0 {
+            assert_eq!(value, &1);
+        } else if key.is_nan() {
+            assert_eq!(value, &2);
+        } else {
+            unreachable!();
+        }
+    }
+}
+
+#[test]
+fn f32_hashmap() {
+    use std::collections::HashMap;
+
+    let mut map = HashMap::new();
+    map.insert(lifering!(1.0_f32), 1);
+    map.insert(lifering!(f32::NAN), 2);
+
+    for (key, value) in &map {
+        let key = key.as_f32();
+        if key == 1.0 {
+            assert_eq!(value, &1);
+        } else if key.is_nan() {
+            assert_eq!(value, &2);
+        } else {
+            unreachable!();
+        }
+    }
+}
