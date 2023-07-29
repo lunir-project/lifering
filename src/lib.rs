@@ -18,7 +18,7 @@ use num::Float;
 #[derive(Clone, Eq, Hash)]
 pub enum FloatingPointComponents<F: Float> {
     Float(u64, i16, i8),
-    NaN(F),
+    NaN(FloatWrap<F>),
 }
 
 impl<F: Float> PartialEq for FloatingPointComponents<F> {
@@ -43,7 +43,18 @@ impl<F: Float> PartialOrd for FloatingPointComponents<F> {
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Hash, Eq)]
 pub struct FloatWrap<F: Float>(F);
+
+impl<F: Float> PartialEq for FloatWrap<F> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.0.is_nan() {
+            self.0.to_f64().unwrap().to_bits() == other.0.to_f64().unwrap().to_bits()
+        } else {
+            self.0 == other.0
+        }
+    }
+}
 
 impl<F: Float> FloatingPointComponents<F> {
     /// Creates new [`FloatingPointComponents`] from a [`Float`].
@@ -60,7 +71,7 @@ impl<F: Float> FloatingPointComponents<F> {
                 sign as f32 * mantissa as f32 * (2 as f32).powf(exponent as f32)
             }
 
-            Self::NaN(v) => v.to_f32().unwrap(),
+            Self::NaN(v) => v.0.to_f32().unwrap(),
         }
     }
 
@@ -71,7 +82,7 @@ impl<F: Float> FloatingPointComponents<F> {
             Self::Float(mantissa, exponent, sign) => {
                 sign as f64 * mantissa as f64 * (2 as f64).powf(exponent as f64)
             }
-            Self::NaN(v) => v.to_f64().unwrap(),
+            Self::NaN(v) => v.0.to_f64().unwrap(),
         }
     }
 
@@ -93,7 +104,7 @@ impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
                 .finish()
                 .and(write!(f, " ({:?})", self.as_f64())),
             Self::NaN(v) => {
-                let v = v.to_f64().unwrap();
+                let v = v.0.to_f64().unwrap();
                 let b = v.to_bits();
 
                 f.debug_struct(if (b & (1 << 51)) == 0 {
@@ -110,12 +121,11 @@ impl<F: Float> std::fmt::Debug for FloatingPointComponents<F> {
 
 impl<F: Float> From<FloatWrap<F>> for FloatingPointComponents<F> {
     fn from(value: FloatWrap<F>) -> Self {
-        let value = value.0;
-
-        if value.is_nan() {
+        if value.0.is_nan() {
             return Self::NaN(value);
         }
 
+        let value = value.0;
         let (mantissa, exponent, sign) = value.integer_decode();
 
         Self::Float(mantissa, exponent, sign)
